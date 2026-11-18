@@ -5,6 +5,7 @@
 ## 环境与使用
 
 需要 Python 3.11 或更高版本，无第三方依赖。运行 `python3 -m unittest discover -s tests -v` 执行测试；运行 `python3 -m learning_participatory_choice.report` 查看合成数据摘要。所有记录均为本地合成数据，不包含个人信息。
+也可使用 Docker 运行：`docker build -t learning-participatory-choice .`，再执行 `docker run --rm learning-participatory-choice`。容器内运行测试可执行 `docker run --rm --entrypoint python3 learning-participatory-choice -m unittest discover -s tests -v`。
 
 ## 现有行为
 

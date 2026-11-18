@@ -1,14 +1,72 @@
 # 不完整课程偏好下的可行课程组合与争议解释
 
-这是一个面向社区老年教育运营的本地分析原型，使用合成记录演示从业务记录到运营摘要的处理。项目把记录读取、统计口径和运营判断分开，便于核对原始事实与派生结果。
+这是一个面向社区老年教育运营的本地分析原型，使用合成记录演示如何把课程征询结果
+用于下一期课程安排：既比较学员的集体偏好，又解释在资源与既有承诺下为什么某些
+高票课程没有入选。
 
 ## 环境与使用
 
-需要 Python 3.11 或更高版本，无第三方依赖。运行 `python3 -m unittest discover -s tests -v` 执行测试；运行 `python3 -m learning_participatory_choice.report` 查看合成数据摘要。所有记录均为本地合成数据，不包含个人信息。
-也可使用 Docker 运行：`docker build -t learning-participatory-choice .`，再执行 `docker run --rm learning-participatory-choice`。容器内运行测试可执行 `docker run --rm --entrypoint python3 learning-participatory-choice -m unittest discover -s tests -v`。
+需要 Python 3.11 或更高版本，无第三方依赖。
 
-## 现有行为
+- 运行 `python3 -m unittest discover -s tests -v` 执行测试。
+- 运行 `python3 -m learning_participatory_choice.report` 查看完整分析摘要。
+- 也可使用 Docker：`docker build -t learning-participatory-choice .`，
+  再执行 `docker run --rm learning-participatory-choice`。容器内运行测试可执行
+  `docker run --rm --entrypoint python3 learning-participatory-choice -m unittest discover -s tests -v`。
 
-问卷可见范围决定偏好证据；资源与共享成本决定可行集合；组合选择按学员可接受覆盖解释且接受承诺约束。
+所有记录均为本地合成数据，不包含个人信息。
 
-当前摘要只反映样例记录的基础汇总，不用于形成个体资格或运营承诺。SQLite 数据库在调用时创建于临时目录，原始 CSV 保持不变。
+## 数据文件（`data/`）
+
+| 文件 | 内容 |
+| --- | --- |
+| `slots.csv` | 时段（星期、起止时间） |
+| `teachers.csv` | 教师及其“共享块成本”，同一教师在同一期无论开几门课只收一次 |
+| `courses.csv` | 课程、教师、时段、容量、最低开班人数、整门课开设成本、既有承诺 |
+| `questionnaires.csv` | 每份问卷实际展示给学员的课程范围 |
+| `responses.csv` | 学员答卷所属问卷、可出席时段 |
+| `preferences.csv` | 明示偏好：`rank` 排名（可并列）或 `reject` 明确拒绝；空行表示未表态 |
+| `program.csv` | 预算等运行参数 |
+| `observations.csv` | 早期遗留的聚合样例，仅保留给旧汇总接口 |
+
+## 处理流程
+
+### 1. 偏好证据（`preferences.py`）
+
+- **不做总排名。** 每对课程分别统计：直接证据（同一学员对两门课都有明示）、
+  补全证据（仅在明确假设下才产生）、未表达人数。
+- **未表态 ≠ 最后一名。** 默认 `missing` 策略不把空白当作排序；另设
+  `unexpressed_lower` 策略作敏感性检查，报告哪些成对结论会因此改变。
+- **展示范围不同不合并。** 每份问卷单独计算，并标出同一课程对在不同问卷人群
+  中方向不一致的情况。
+- **保留循环与不完整比较。** 用强连通分量识别循环，原样报告。
+- **并列与拒绝分别处理。** 并列首位按“并列首选”计数；明确拒绝只表示不接受，
+  不参与对未展示课程的排序。
+- **首选票数只是描述统计**，不构成多数支持或胜负依据。
+
+### 2. 可行组合（`feasibility.py`、`scheduling.py`）
+
+在全部候选组合上整体比较，而不是先选热门课再逐项删课。一个组合必须同时满足：
+
+- 所有既有承诺课程都在组合中；承诺不满足时报出冲突来源，**不会静默取消承诺**；
+- 同一教师不在同一时段承担两门课；
+- 开设成本 + 各教师一次性共享块成本 ≤ 预算；
+- 每门课都能由“看过该课、排过该课、且能到该时段”的学员达到最低人数与容量。
+
+学员分配用带下界的最大流：每人最多上一门课，覆盖率按**去重后的学员**计算，
+同一人的多份意向不会重复计入。
+
+### 3. 方案比较与排除理由
+
+- 输出帕累托前沿，以及“最大覆盖 / 最低成本 / 最高偏好满足度 / 仅既有承诺”
+  几个不同取舍的可行方案；不宣布唯一最优。
+- 对参考方案中未入选的每门课，追查原因属于：
+  `resource`（预算、教师时段、最低人数）、`existing_commitment`（与既有承诺冲突），
+  还是 `preference_evidence`（可接受学员不足或无边际覆盖）。
+  同时给出首选意向数、可到课排课人数、与参考方案的边际成本等证据。
+
+## 测试
+
+`tests/test_workflow.py` 覆盖：循环不被消解、未表态不等于末位、问卷范围隔离、
+并列与拒绝、共享教师成本、教师时段冲突、承诺冲突显式报告、按人计覆盖去重、
+最低人数约束，以及高首选票课程可解释的排除理由。

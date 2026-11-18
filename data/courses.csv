@@ -1,0 +1,10 @@
+course_id,title,teacher_id,slot_id,capacity,min_enrollment,opening_cost,committed
+C1,手机摄影,T1,S1,8,3,100,false
+C2,中医养生,T2,S1,8,3,90,false
+C3,合唱,T1,S1,12,4,80,false
+C4,书法,T3,S2,8,3,70,false
+C5,太极,T2,S3,10,4,85,true
+C6,智能设备,T1,S3,6,2,50,false
+C7,水彩,T4,S4,8,3,60,false
+C8,园艺,T4,S5,10,3,55,true
+C9,烹饪,T3,S1,6,3,65,false
